@@ -3,12 +3,62 @@ using System.Collections.Generic;
 using UnityEngine;
 using Wilberforce;
 using TMPro;
+using System;
+
+public enum VisionType
+{
+    NORMAL,
+    PROTANOPIA
+}
+
+[Serializable]
+public class ColorBlindMaterialColorConfig
+{
+    public Material mat;
+    public Color normal;
+    public Color protanopia;
+
+    public void SetVision( VisionType visionType )
+    {
+        switch ( visionType )
+        {
+            case VisionType.NORMAL:
+            mat.color = normal;
+            break;
+            case VisionType.PROTANOPIA:
+            mat.color = protanopia;
+            break;
+        }
+    }
+}
+
+[Serializable]
+public class ColorBlindMaterialTextureConfig
+{
+    public Material mat;
+    public Texture normal;
+    public Texture protanopia;
+
+    public void SetVision( VisionType visionType )
+    {
+        switch ( visionType )
+        {
+            case VisionType.NORMAL:
+            mat.mainTexture = normal;
+            break;
+            case VisionType.PROTANOPIA:
+            mat.mainTexture = protanopia;
+            break;
+        }
+    }
+}
 
 public class GameLogic2 : MonoBehaviour {
 
     public int ripeApples; //total ripe apples
     public int collectedApples; //ripe apples collected
 
+    public GameObject titleCanvas;
     public GameObject playCanvas;
     public GameObject explanationCanvas;
 
@@ -26,13 +76,15 @@ public class GameLogic2 : MonoBehaviour {
     public TextMeshProUGUI timeText; //time text pro UGUI
     public TextMeshProUGUI scoreText; //score text pro UGUI
 
+    public TextMeshProUGUI normalScoreText;
+    public TextMeshProUGUI comparisonScoreText;
+
     public GameObject parkSign; // info screen sign
     public GameObject[] canvasObjs; //all canvas gameobjects
 
     public GameObject yuckObject; // fail noise
     public GameObject yumObject; // success noise
     
-
     public Camera mainCamera;
 
     public bool gameRunning;
@@ -41,6 +93,12 @@ public class GameLogic2 : MonoBehaviour {
     public float timeRemaining; //length of timer
 
     public int level = 0;
+
+    public List<ColorBlindMaterialTextureConfig> matColorblindTextures;
+    public List<ColorBlindMaterialColorConfig> matColorblindColors;
+
+    public Color skyColorNormal;
+    public Color skyColorProtanopia;
 
     //private vars
     private AudioSource yuck;
@@ -51,23 +109,13 @@ public class GameLogic2 : MonoBehaviour {
         yum = yumObject.GetComponent<AudioSource>();
         yuck = yuckObject.GetComponent<AudioSource>();
 
-        /*timeSign = GameObject.FindGameObjectWithTag("SignTime");
-        timeText = timeSign.GetComponentInChildren<TextMeshProUGUI>();
-        //timeCanvas = timeSign.GetComponent<Canvas>();
-        //timeText = timeCanvas.GetComponent<TextMeshProUGUI>();
-
-        scoreSign = GameObject.FindGameObjectWithTag("SignScore");
-        scoreText = scoreSign.GetComponentInChildren<TextMeshProUGUI>();
-        //scoreCanvas = scoreSign.GetComponent<Canvas>();
-        //scoreText = scoreCanvas.GetComponent<TextMeshProUGUI>();*/
-
         StartGame();
-
     }
 
     void StartGame()
     {
         level = 0;
+
         //disable timer/score signs
         scoreSign.SetActive(false);
         timeSign.SetActive(false);
@@ -75,17 +123,16 @@ public class GameLogic2 : MonoBehaviour {
         //show park sign
         parkSign.SetActive(true); //sign play button starts gameNormal
 
-        //show explanation canvas
+        //show title canvas
         canvasObjs[0].SetActive(true);
         canvasObjs[1].SetActive(false);
         canvasObjs[2].SetActive(false);
         canvasObjs[3].SetActive(false);
-
+        canvasObjs[4].SetActive(false);
     }
 
     public void gameNormal()
     {
-
         //generate fruit
         fruitGenerator.spawnApples();
         fruitGenerator.spawnFlowers();
@@ -112,7 +159,6 @@ public class GameLogic2 : MonoBehaviour {
 
     public void gameColorblind()
     {
-
         //remove old fruit
         collectedApples = 0;
         
@@ -130,9 +176,13 @@ public class GameLogic2 : MonoBehaviour {
         scoreSign.SetActive(true);
         timeSign.SetActive(true);
 
+        //updated scoreboard
+        UpdateScore();
+
         //turn on protanopia vision
-        Colorblind colorblindsetting = mainCamera.GetComponent<Colorblind>();
-        colorblindsetting.Type = 2;
+        SetVision( VisionType.PROTANOPIA );
+        //Colorblind colorblindsetting = mainCamera.GetComponent<Colorblind>();
+        //colorblindsetting.Type = 2;
 
         gameRunning = true;
         level++;
@@ -155,7 +205,7 @@ public class GameLogic2 : MonoBehaviour {
         //turn onpark sign
         parkSign.SetActive(true);
 
-        //turn on score sign
+        //turn off score sign
         scoreSign.SetActive(false);
         timeSign.SetActive(false);
 
@@ -166,8 +216,11 @@ public class GameLogic2 : MonoBehaviour {
             //show red-green canvas
             canvasObjs[0].SetActive(false);
             canvasObjs[1].SetActive(false);
-            canvasObjs[2].SetActive(true);
-            canvasObjs[3].SetActive(false);
+            canvasObjs[2].SetActive(false);
+            canvasObjs[3].SetActive(true);
+            canvasObjs[4].SetActive(false);
+
+            normalScoreText.SetText("Great job! You scored: " + normalScore);
         }
         else if (endedLevel == 2)
         {
@@ -177,11 +230,16 @@ public class GameLogic2 : MonoBehaviour {
             canvasObjs[0].SetActive(false);
             canvasObjs[1].SetActive(false);
             canvasObjs[2].SetActive(false);
-            canvasObjs[3].SetActive(true);
+            canvasObjs[3].SetActive(false);
+            canvasObjs[4].SetActive(true);
 
             //turn on normal vision
-            Colorblind colorblindsetting = mainCamera.GetComponent<Colorblind>();
-            colorblindsetting.Type = 0;
+            SetVision( VisionType.NORMAL );
+            //Colorblind colorblindsetting = mainCamera.GetComponent<Colorblind>();
+            //colorblindsetting.Type = 0;
+
+            //show score comparison
+            comparisonScoreText.SetText("Normal Score:{0}	Colorblind Score:{1}", normalScore, colorblindScore);
         }
     }
 
@@ -191,6 +249,15 @@ public class GameLogic2 : MonoBehaviour {
         {
             DecreaseTime();
         } 
+    }
+
+    void Update()
+    {
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            // Android close icon or back button tapped.
+            Application.Quit();
+        }
     }
 
     void DecreaseTime()
@@ -240,7 +307,7 @@ public class GameLogic2 : MonoBehaviour {
             // play "yuck" noise
             yuck.Play();
 
-            //assign some sort of penalty, like decreasing time
+            // TODO: assign some sort of penalty, like decreasing time
         }
 
         UpdateScore();
@@ -248,7 +315,12 @@ public class GameLogic2 : MonoBehaviour {
 
     public void NextSlide(string slideName)
     {
-        if (slideName == "PlaySlide")
+        if(slideName == "ExplanationSlide")
+        {
+            titleCanvas.SetActive(false);
+            explanationCanvas.SetActive(true);
+        }
+        else if (slideName == "PlaySlide")
         {
             explanationCanvas.SetActive(false);
             playCanvas.SetActive(true);
@@ -260,4 +332,26 @@ public class GameLogic2 : MonoBehaviour {
         Application.OpenURL(link);
     }
 
+    private void SetVision( VisionType visionType )
+    {
+        foreach ( ColorBlindMaterialColorConfig matColorblindColor in matColorblindColors )
+        {
+            matColorblindColor.SetVision( visionType );
+        }
+
+        foreach ( ColorBlindMaterialTextureConfig matColorblindTexture in matColorblindTextures )
+        {
+            matColorblindTexture.SetVision( visionType );
+        }
+
+        switch ( visionType )
+        {
+            case VisionType.NORMAL:
+                mainCamera.backgroundColor = skyColorNormal;
+                break;
+            case VisionType.PROTANOPIA:
+                mainCamera.backgroundColor = skyColorProtanopia;
+                break;
+        }
+    }
 }
